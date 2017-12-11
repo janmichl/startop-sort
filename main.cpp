@@ -17,7 +17,7 @@
 
 #include "utilities.h"
 
-#define K 10
+#define K 10 
 #define N 100
 
 // allocate K * N resulting sorted vector
@@ -70,22 +70,36 @@ template<typename t>
         void operator()()
         {
             std::sort(vector_.begin(), vector_.end());
-            while(!vector_.empty())
+            bool node_killed = true;
+            while(true)
             {
-                g_lock_master.lock();
-                g_master_node.buffer_[thread_id_] = vector_.front(); 
-                g_master_node.pushed_elements_++;
-                g_lock_master.unlock();
+                bool thread_mask = ((thread_id_ * N + 1 <= (g_loop_index + 1)) && ((g_loop_index + 1) <= (thread_id_ + 1) * N));
+                if(!vector_.empty())
+                {
+                    g_lock_master.lock();
+                    g_master_node.buffer_[thread_id_] = vector_.front(); 
+                    g_master_node.pushed_elements_++;
+                    g_lock_master.unlock();
+                }
+                else
+                {
+                    g_lock_master.lock();
+                    g_master_node.buffer_[thread_id_] = std::numeric_limits<int>::max(); 
+                    g_master_node.pushed_elements_++;
+                    g_lock_master.unlock();
+                }
                 
                 writing_barrier.wait();
-                
-                if(thread_id_ == g_master_node.thread_index_)
+                    
+                if(!vector_.empty())
                 {
-                    vector_.erase(vector_.begin());
+                    if(thread_id_ == g_master_node.thread_index_)
+                    {
+                        vector_.erase(vector_.begin());
+                    }
                 }
-
-                bool thread_mask = ((thread_id_ * N + 1 <= g_loop_index) && ( g_loop_index <= (thread_id_ + 1) * N));
-                if(thread_mask)
+                
+                if((vector_sorted_.size() < N) && thread_mask)
                 {
                     g_lock_master.lock();
                     vector_sorted_.push_back(g_master_node.buffer_.front());
@@ -94,33 +108,26 @@ template<typename t>
                 
                 reading_barrier.wait();
                 
-                g_lock_sorted.lock();
-                if((vector_sorted_.size() == 100) && thread_mask)
+                if((vector_.empty()) && (vector_sorted_.size() == N))
                 {
-                    std::cout << "thread " << thread_id_ << std::endl;
-                    utilities::printVector(std::cout, vector_sorted_);
-                    
-                    g_threads_done++;
-                    if(g_threads_done == K)
+                    if(node_killed)
                     {
-                        std::exit(0);
+                        g_lock_sorted.lock();
+                        std::cout << "-------" << std::endl;
+                        std::cout << "worker thread " << thread_id_ << std::endl;
+                        std::cout << "k " << g_loop_index << std::endl;
+                        utilities::printVector(std::cout, vector_sorted_);
+                        std::cout << "-------" << std::endl;
+                        g_threads_done++;
+                        g_lock_sorted.unlock();
+                        node_killed = false;
                     }
                 }
-                g_lock_sorted.unlock();
-            }
 
-            g_lock_nodes_counter.lock();
-            g_master_node.running_nodes_--;
-            g_lock_nodes_counter.unlock();
-                
-            g_lock_master.lock();
-            g_master_node.buffer_[thread_id_] = std::numeric_limits<int>::max(); 
-            g_lock_master.unlock();
-            
-            while(g_master_node.running_nodes_)
-            {
-                writing_barrier.wait();
-                reading_barrier.wait();
+                if(g_threads_done == K)
+                {
+                    std::exit(0);
+                }
             }
         }
 
@@ -142,9 +149,9 @@ class masterThread
 
         void operator()()
         {
-            while(g_loop_index != K * N)
+            while(g_threads_done != K)
             {
-                if(g_master_node.running_nodes_ == g_master_node.pushed_elements_)
+                if(K == g_master_node.pushed_elements_)
                 {
                     g_lock_master.lock();
                     auto min = std::min_element(g_master_node.buffer_.begin(), g_master_node.buffer_.end());
