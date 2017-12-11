@@ -17,7 +17,9 @@
 
 #include "utilities.h"
 
+// number of workers
 #define K 10 
+// length of a worker
 #define N 100
 
 // global master node
