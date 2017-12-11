@@ -164,25 +164,33 @@ class masterThread
 // main
 int main(int argc, char** argv)
 {
-    // generate K * N  long vector to sort for worker nodes
-    std::vector<int> workers = utilities::generateRandomVector(K * N, 1);
-    
-    // print unsorted array
-    std::cout << "before sorting" << std::endl;
-    utilities::printVector(std::cout, workers);
-
-    // launch threads
-    std::vector<std::thread> threads(K + 1);
-    for(std::size_t i = 0; i < threads.size() - 1; ++i)
+    try
     {
-        std::vector<int> subvector(&workers[i * N], &workers[((i + 1) * N)]);
-        threads[i] = std::thread(workerThread<int>(subvector, i)); 
+        // generate K * N  long vector to sort for worker nodes
+        std::vector<int> workers = utilities::generateRandomVector(K * N, 1);
+        
+        // print unsorted array
+        std::cout << "before sorting" << std::endl;
+        utilities::printVector(std::cout, workers);
+
+        // launch threads
+        std::vector<std::thread> threads(K + 1);
+        for(std::size_t i = 0; i < threads.size() - 1; ++i)
+        {
+            std::vector<int> subvector(&workers[i * N], &workers[((i + 1) * N)]);
+            threads[i] = std::thread(workerThread<int>(subvector, i)); 
+        }
+        threads[threads.size() - 1] = std::thread(masterThread()); 
+
+        for(std::size_t i = 0; i < threads.size(); ++i)
+        {
+            threads[i].join(); 
+        }
     }
-    threads[threads.size() - 1] = std::thread(masterThread()); 
-
-    for(std::size_t i = 0; i < threads.size(); ++i)
+    catch(const std::exception& e)
     {
-        threads[i].join(); 
+        std::cerr << "exception caught: " << e.what() << std::endl;
+        std::exit(-1);
     }
     
     return(0);
