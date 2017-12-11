@@ -20,9 +20,6 @@
 #define K 10 
 #define N 100
 
-// allocate K * N resulting sorted vector
-std::vector<int> g_sorted_vector(K * N);
-
 // global master node
 class MasterNode
 {
