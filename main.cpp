@@ -42,7 +42,6 @@ MasterNode g_master_node;
 
 // global mutexes
 std::mutex g_lock_master;
-std::mutex g_lock_nodes_counter;
 std::mutex g_lock_k;
 std::mutex g_lock_sorted;
 
@@ -53,8 +52,8 @@ std::size_t g_loop_index = 0;
 std::size_t g_threads_done = 0;
 
 // barriers
-utilities::Barrier writing_barrier(K + 1);
-utilities::Barrier reading_barrier(K);
+utilities::Barrier g_writing_barrier(K + 1);
+utilities::Barrier g_reading_barrier(K);
 
 // worker node thread functor
 template<typename t>
@@ -76,20 +75,18 @@ template<typename t>
                 bool thread_mask = ((thread_id_ * N + 1 <= (g_loop_index + 1)) && ((g_loop_index + 1) <= (thread_id_ + 1) * N));
                 if(!vector_.empty())
                 {
-                    g_lock_master.lock();
+                    std::unique_lock<std::mutex> lock(g_lock_master);
                     g_master_node.buffer_[thread_id_] = vector_.front(); 
                     g_master_node.pushed_elements_++;
-                    g_lock_master.unlock();
                 }
                 else
                 {
-                    g_lock_master.lock();
+                    std::unique_lock<std::mutex> lock(g_lock_master);
                     g_master_node.buffer_[thread_id_] = std::numeric_limits<int>::max(); 
                     g_master_node.pushed_elements_++;
-                    g_lock_master.unlock();
                 }
                 
-                writing_barrier.wait();
+                g_writing_barrier.wait();
                     
                 if(!vector_.empty())
                 {
@@ -101,25 +98,22 @@ template<typename t>
                 
                 if((vector_sorted_.size() < N) && thread_mask)
                 {
-                    g_lock_master.lock();
+                    std::unique_lock<std::mutex> lock(g_lock_master);
                     vector_sorted_.push_back(g_master_node.buffer_.front());
-                    g_lock_master.unlock();
                 }
                 
-                reading_barrier.wait();
+                g_reading_barrier.wait();
                 
                 if((vector_.empty()) && (vector_sorted_.size() == N))
                 {
                     if(node_killed)
                     {
-                        g_lock_sorted.lock();
+                        std::unique_lock<std::mutex> lock(g_lock_sorted);
                         std::cout << "-------" << std::endl;
                         std::cout << "worker thread " << thread_id_ << std::endl;
-                        std::cout << "k " << g_loop_index << std::endl;
                         utilities::printVector(std::cout, vector_sorted_);
                         std::cout << "-------" << std::endl;
                         g_threads_done++;
-                        g_lock_sorted.unlock();
                         node_killed = false;
                     }
                 }
@@ -159,9 +153,12 @@ class masterThread
                     g_master_node.buffer_.front() = *min;
                     g_master_node.pushed_elements_ = 0;
                     g_lock_master.unlock();
-                    std::unique_lock<std::mutex> lock1(g_lock_k);
+                    
+                    g_lock_k.lock();
                     g_loop_index++;
-                    writing_barrier.wait();
+                    g_lock_k.unlock();
+                    
+                    g_writing_barrier.wait();
                 }
             }
         }
