@@ -39,7 +39,7 @@ MasterNode g_master_node;
 
 // global mutexes
 std::mutex g_lock_master;
-std::mutex g_lock_k;
+std::mutex g_lock_loop_index;
 std::mutex g_lock_sorted;
 
 // loop index
@@ -151,9 +151,9 @@ class masterThread
                     g_master_node.pushed_elements_ = 0;
                     g_lock_master.unlock();
                     
-                    g_lock_k.lock();
+                    g_lock_loop_index.lock();
                     g_loop_index++;
-                    g_lock_k.unlock();
+                    g_lock_loop_index.unlock();
                     
                     g_writing_barrier.wait();
                 }
