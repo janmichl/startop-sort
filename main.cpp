@@ -23,7 +23,8 @@
 #define N 100
 
 // global master node
-class MasterNode
+template<typename t>
+  class MasterNode
 {
     public:
         MasterNode() : running_nodes_(K), pushed_elements_(0)
@@ -32,12 +33,12 @@ class MasterNode
         }
 
 
-        std::vector<int> buffer_;
-        std::size_t      thread_index_;
-        std::size_t      running_nodes_;
-        std::size_t      pushed_elements_;
+        std::vector<t> buffer_;
+        std::size_t    thread_index_;
+        std::size_t    running_nodes_;
+        std::size_t    pushed_elements_;
 };
-MasterNode g_master_node;
+MasterNode<int> g_master_node;
 
 // global mutexes
 std::mutex g_lock_master;
