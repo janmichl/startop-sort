@@ -198,6 +198,8 @@ int main(int argc, char** argv)
         {
             std::this_thread::yield();
         }
+        
+        std::cout << "threads done" << std::endl;
     }
     catch(const std::exception& e)
     {
