@@ -7,13 +7,13 @@
 
 #include <iostream>
 #include <cstdlib>
-#include <ctime>
 #include <thread>
 #include <condition_variable>
 #include <mutex>
 #include <vector>
 #include <algorithm>
 #include <limits>
+#include <atomic>
 
 #include "utilities.h"
 
@@ -27,9 +27,9 @@ template<typename t>
   class MasterNode
 {
     public:
-        MasterNode() : running_nodes_(K), pushed_elements_(0)
+        MasterNode(std::size_t running_nodes) : running_nodes_(running_nodes), pushed_elements_(0)
         {
-            buffer_.resize(K);
+            buffer_.resize(running_nodes);
         }
 
 
@@ -38,7 +38,7 @@ template<typename t>
         std::size_t    running_nodes_;
         std::size_t    pushed_elements_;
 };
-MasterNode<int> g_master_node;
+MasterNode<int> g_master_node(K);
 
 // global mutexes
 std::mutex g_lock_master;
@@ -54,6 +54,9 @@ std::size_t g_threads_done = 0;
 // barriers
 utilities::Barrier g_writing_barrier(K + 1);
 utilities::Barrier g_reading_barrier(K);
+
+// is the computation ready
+std::atomic<bool> is_ready(false);
 
 // worker node thread functor
 template<typename t>
@@ -120,7 +123,7 @@ template<typename t>
 
                 if(g_threads_done == K)
                 {
-                    std::exit(0);
+                    is_ready.store(true);
                 }
             }
         }
@@ -187,7 +190,13 @@ int main(int argc, char** argv)
 
         for(std::size_t i = 0; i < threads.size(); ++i)
         {
-            threads[i].join(); 
+            threads[i].detach(); 
+        }
+
+        // wait for threads to finish
+        while(!is_ready.load())
+        {
+            std::this_thread::yield();
         }
     }
     catch(const std::exception& e)
